@@ -3,15 +3,29 @@ from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import mean_squared_error
 import statsmodels.api as sm
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.preprocessing import StandardScaler
+
 
 # Load the dataset
 df = pd.read_csv("NC_cleaned.csv")  # Replace with the actual file path
+
+# List out missing values
+missing_values = df.isna().sum()
+
+#listing the columns with missing values
+columns_with_missing = missing_values[missing_values > 0]
+print("\nColumns with Missing Values:")
+print(columns_with_missing)
+
 
 # Display basic info
 print("Dataset info:")
 print(df.info())
 
 # Data Cleaning Steps
+
 # 1. Drop rows with missing values in critical columns
 df = df.dropna(subset=['driver_race', 'driver_age', 'driver_gender', 'is_arrested', 'search_conducted', 'is_arrested', 'stop_outcome'])
 
@@ -30,10 +44,36 @@ df = df.dropna(subset=['age_group'])
 # 5. Ensure is_arrested is boolean (if not already)
 df['is_arrested'] = df['is_arrested'].astype(bool)
 
+# Plot distribution of age groups
+plt.figure(figsize=(8, 5))
+sns.countplot(x='age_group', data=df, palette='viridis')
+plt.title('Distribution of Age Groups')
+plt.xlabel('Age Group')
+plt.ylabel('Count')
+plt.show()
+
+# Plot distribution of driver gender
+plt.figure(figsize=(8, 5))
+sns.countplot(x='driver_gender', data=df, palette='Blues')
+plt.title('Distribution of Driver Gender (M = Male)')
+plt.xlabel('Gender (M = Male)')
+plt.ylabel('Count')
+plt.show()
+
+# Arrest rate by race
+plt.figure(figsize=(10, 6))
+sns.barplot(x='driver_race', y='is_arrested', data=df, ci=None, palette='coolwarm')
+plt.title('Arrest Rate by Race')
+plt.xlabel('Race')
+plt.ylabel('Arrest Rate')
+plt.show()
+
+
 # Create a binary target for Citation (1 = Citation, 0 = Other outcomes)
 df['citation'] = (df['stop_outcome'] == 'Citation').astype(int)
 
 # Calculate Arrest Percentages
+
 # Group by race, age_group, and gender
 grouped = df.groupby(['driver_race', 'age_group', 'driver_gender'])
 
@@ -52,6 +92,14 @@ print(arrest_percentages_df)
 arrest_percentages_df.to_csv("arrest_percentages.csv", index=False)
 print("\nResults saved to 'arrest_percentages.csv'.")
 
+# Plot arrest percentages by race, age group, and gender
+plt.figure(figsize=(12, 8))
+sns.barplot(x='arrest_percentage', y='driver_race', hue='age_group', data=arrest_percentages_df, ci=None, palette='coolwarm')
+plt.title('Arrest Percentage by Race and Age Group')
+plt.xlabel('Arrest Percentage')
+plt.ylabel('Driver Race')
+plt.legend(title='Age Group', loc='upper right')
+plt.show()
 
 # One-hot encode race and gender
 df = pd.get_dummies(df, columns=['driver_race', 'driver_gender'], drop_first=True)
@@ -70,12 +118,14 @@ X = df[['age_group', 'driver_race_Black', 'driver_race_Hispanic', 'driver_race_W
 # Ensure X is of numeric type (just in case)
 X = X.apply(pd.to_numeric, errors='coerce')
 
-# Check if any column in X has a non-numeric type
-print("\nData types of X:")
-print(X.dtypes)
 
 # Remove any rows with NaN values (result of coercion from non-numeric values)
 X = X.dropna()
+
+
+# Standardize features
+scaler = StandardScaler()
+X_scaled = scaler.fit_transform(X)
 
 # Sampling the data to reduce computational cost (ensure standard errors are < 0.1)
 y_search = df['search_conducted']
@@ -86,9 +136,21 @@ X_sample, _, y_search_sample, _ = train_test_split(X, y_search, test_size=0.8, r
 _, _, y_arrest_sample, _ = train_test_split(X, y_arrest, test_size=0.8, random_state=42)
 _, _, y_citation_sample, _ = train_test_split(X, y_citation, test_size=0.8, random_state=42)
 
+
+
+
+print("Search Conducted Class Distribution:")
+print(y_search_sample.value_counts())
+
+print("Arrest Class Distribution:")
+print(y_arrest_sample.value_counts())
+
+print("Citation Class Distribution:")
+print(y_citation_sample.value_counts())
+
 # Train logistic regression models
 def train_logistic_regression(X_train, y_train, X_test, y_test):
-    model = LogisticRegression(max_iter=1000)  # Increase max_iter if convergence is an issue
+    model = LogisticRegression(max_iter=1000, penalty='l2')  # Increase max_iter if convergence is an issue
     model.fit(X_train, y_train)
     y_pred = model.predict_proba(X_test)[:, 1]
     mse = mean_squared_error(y_test, y_pred)
@@ -125,6 +187,28 @@ report_results(model_arrest, mse_arrest, X.columns)
 # Citation
 print("\nCitation:")
 report_results(model_citation, mse_citation, X.columns)
+
+# Visualize the coefficients
+def plot_coefficients(model, feature_names, title):
+    coefficients = model.coef_[0]
+    coef_df = pd.DataFrame({
+        'Feature': feature_names,
+        'Coefficient': coefficients
+    })
+    plt.figure(figsize=(10, 6))
+    sns.barplot(x='Coefficient', y='Feature', data=coef_df, palette='coolwarm')
+    plt.title(title)
+    plt.show()
+
+# Search Conducted Coefficients
+plot_coefficients(model_search, X.columns, 'Search Conducted: Coefficients')
+
+# Arrest Coefficients
+plot_coefficients(model_arrest, X.columns, 'Arrest: Coefficients')
+
+# Citation Coefficients
+plot_coefficients(model_citation, X.columns, 'Citation: Coefficients')
+
 
 
 
