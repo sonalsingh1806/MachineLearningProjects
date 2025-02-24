@@ -2,6 +2,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import StandardScaler
+from sklearn.ensemble import VotingClassifier
 from sklearn.linear_model import LogisticRegression
 from sklearn.naive_bayes import GaussianNB
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier, GradientBoostingClassifier
@@ -64,6 +65,17 @@ base_estimator = DecisionTreeClassifier(max_depth=1)
 # AdaBoost with a base estimator (use the model directly)
 adaboost = AdaBoostClassifier(DecisionTreeClassifier(max_depth=1), n_estimators=30)
 grad_boost = GradientBoostingClassifier(n_estimators=100, learning_rate=0.05,max_depth=3,max_features='sqrt')  # Lower learning rate
+
+# Create the ensemble model with soft voting
+ensemble_model = VotingClassifier(
+    estimators=[
+        ('log_reg', LogisticRegression()),
+        ('naive_bayes', GaussianNB()),
+        ('rf', RandomForestClassifier(n_estimators=10))
+    ],
+    voting='soft'  # Use soft voting to enable predict_proba
+)
+
 
 # Function to evaluate model performance
 def evaluate_model(model, X_train, y_train, X_test):
@@ -149,16 +161,16 @@ pca = PCA(n_components=20)  # Reduce to 20 principal components (adjust as neces
 X_train_scaled_pca = pca.fit_transform(X_train_scaled)
 X_test_scaled_pca = pca.transform(X_test_scaled)
 
-#tomek = TomekLinks(sampling_strategy='auto')
+tomek = TomekLinks(sampling_strategy='auto')
 X_train_tomek, y_train_tomek = tomek.fit_resample(X_train_scaled_pca, y_train)
 
-#print("Evaluating Logistic Regression with TomekLinks (Undersampling)...")
+print("Evaluating Logistic Regression with TomekLinks (Undersampling)...")
 log_reg_predictions_tomek = evaluate_model(log_reg, X_train_tomek, y_train_tomek, X_test_scaled_pca)
 
-#print("Evaluating Naïve Bayes with TomekLinks (Undersampling)...")
+print("Evaluating Naïve Bayes with TomekLinks (Undersampling)...")
 naive_bayes_predictions_tomek = evaluate_model(naive_bayes, X_train_tomek, y_train_tomek, X_test_scaled_pca)
 
-#print("Evaluating Random Forest with TomekLinks (Undersampling)...")
+print("Evaluating Random Forest with TomekLinks (Undersampling)...")
 rf_predictions_tomek = evaluate_model(rf, X_train_tomek, y_train_tomek, X_test_scaled_pca)
 
 # Balanced Random Forest (no resampling, just a balanced version of random forest)
@@ -172,6 +184,10 @@ adaboost_predictions = evaluate_model(adaboost, X_train_resampled, y_train_resam
 # Gradient Boosting Classifier
 print("Evaluating Gradient Boosting Classifier...")
 grad_boost_predictions = evaluate_model(grad_boost, X_train_scaled, y_train, X_test_scaled)
+
+# Evaluate Ensemble Model (Logistic Regression, Naïve Bayes, Random Forest)
+print("Evaluating Ensemble Model (Logistic Regression, Naïve Bayes, Random Forest)...")
+ensemble_predictions = evaluate_model(ensemble_model, X_train_scaled, y_train, X_test_scaled)
 
 # Saving predictions to CSV for future use
 predictions = pd.DataFrame({
