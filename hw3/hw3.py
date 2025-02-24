@@ -155,15 +155,18 @@ rf_predictions_smote = evaluate_model(rf, X_train_smote, y_train_smote, X_test_s
 
 # Apply TomekLinks (Undersampling)
 from imblearn.under_sampling import TomekLinks
-from sklearn.decomposition import PCA
+from sklearn.decomposition import PCA, IncrementalPCA
 
-pca = PCA(n_components=20)  # Reduce to 20 principal components (adjust as necessary)
+# Use IncrementalPCA for faster computation on large datasets
+pca = IncrementalPCA(n_components=20, batch_size=1000)  
 X_train_scaled_pca = pca.fit_transform(X_train_scaled)
 X_test_scaled_pca = pca.transform(X_test_scaled)
 
-tomek = TomekLinks(sampling_strategy='auto')
+# Parallelize TomekLinks using n_jobs=-1 (using all available cores)
+tomek = TomekLinks(sampling_strategy='auto', n_jobs=-1)  # Use all CPU cores for faster execution
 X_train_tomek, y_train_tomek = tomek.fit_resample(X_train_scaled_pca, y_train)
 
+# Print out evaluation results
 print("Evaluating Logistic Regression with TomekLinks (Undersampling)...")
 log_reg_predictions_tomek = evaluate_model(log_reg, X_train_tomek, y_train_tomek, X_test_scaled_pca)
 
